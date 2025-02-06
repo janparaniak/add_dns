@@ -173,6 +173,7 @@ No code changes are needed. **Three steps** are required to add a new account:
       
         
         `[   { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },   { "account_id": "727712672144", "role_name": "DNSManager" },   { "account_id": "XXXXXXXXXXXX", "role_name": "DNSManager" } ]`
+    where XXXXXXXXXXXX is the target AWS account ID
         
 
 3. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
