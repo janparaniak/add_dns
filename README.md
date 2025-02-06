@@ -136,7 +136,7 @@ No code changes are needed. **Three steps** are required to add a new account:
     - In the target account, got to IAM --> Roles and create an IAM role (`DNSManager`)
     - Set the trusted entity type to **AWS account**, choose "Another AWS account" and specify Lambda’s account ID (899084202472). Click "Next"
     - Add permission `AmazonRoute53FullAccess` and click "Next"
-    - Name Role to "DNSManager" and click "Create Role"
+    - Name Role "DNSManager" and click "Create Role"
     - After creating the role, edit the trust relationship > trust policy to:
       
 
