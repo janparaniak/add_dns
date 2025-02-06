@@ -112,11 +112,7 @@ The Lambda function now supports multiple accounts using the environment variabl
     Tag a ticket with `add_dns-trigger`. This sends a JSON payload (including fields like `action`, `ticket_id`, and `description`) to the API Gateway endpoint.
     
     **Example Payload:**
-    
-    json
-    
-    Copy
-    
+
     `{   "action": "add_dns",   "ticket_id": "123456",   "description": "DNS Name: test\nDomain: example.com\nDNS Type: A\nDNS Value: 1.2.3.4" }`
     
 10. **Lambda Execution:**
