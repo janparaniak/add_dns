@@ -129,7 +129,7 @@ The Lambda function now supports multiple accounts using the environment variabl
 
 ## Expanding Functionality to Other Accounts
 
-No code changes are required. **Three steps** are required to add a new account:
+No code changes are needed. **Three steps** are required to add a new account:
 
 ### 1. **Create the IAM Role in the Target Account:**
     
