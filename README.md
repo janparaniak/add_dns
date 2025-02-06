@@ -164,8 +164,10 @@ No code changes are required. To add a new account:
 }
 ```
 
-13. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:**
+13. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:** in  RAM-AWS-CoreSupport-Admin (899084202472)
     
+    - Navigate to Lambda --> Functions --> add_dns --> Configuration tab --> Environment variables
+    - Press Edit and find the DNS_ACCOUNT_ROLE_MAPPINGS key
     - Append a new JSON object for the target account to the array. For example:
         
         `[   { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },   { "account_id": "727712672144", "role_name": "DNSManager" },   { "account_id": "XXXXXXXXXXXX", "role_name": "NewTargetRole" } ]`
@@ -173,13 +175,16 @@ No code changes are required. To add a new account:
 14. **Update Environment Variables in the Lambda Function:**
     
     - Add new account ID and role name as two environment variables (two key:value pairs)
+    - For example, if the target account id is 600506650469, you can add two pairs as follows:
+            ID_600506650469 600506650469
+            Name_600506650469 DNSManager
 
 15. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
     
-    - In CoreSupport-Admin (AWS account ID 899084202472) navigate to IAM --> Roles
-    - Find add-dns-AddDnsFunctionRole-VhfqUK6mRbe9
+    - Still in CoreSupport-Admin (AWS account ID 899084202472) navigate to IAM --> Roles
+    - Find add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 Role
     - Click Add permissions --> Create inline policy
-    - JSON: 
+    - Choose JSON and in the policy editor write: 
 ```
 {
     "Version": "2012-10-17",
@@ -201,7 +206,7 @@ Example:
         {
             "Effect": "Allow",
             "Action": "sts:AssumeRole",
-            "Resource": "arn:aws:iam::727712672144:role/DNSManager"
+            "Resource": "arn:aws:iam::600506650469:role/DNSManager"
         }
     ]
 }
