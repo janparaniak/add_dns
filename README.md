@@ -179,11 +179,13 @@ No code changes are needed. **Three steps** are required to add a new account:
 
 3. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
 
-Just add a new policy. You can name the policy with the target account ID or its name
+    Just add a new policy. You can name the policy with the target account ID or its name
+
     - Still in CoreSupport-Admin (AWS account ID 899084202472) navigate to IAM --> Roles
     - Find `add-dns-AddDnsFunctionRole-VhfqUK6mRbe9` Role
     - Click Add permissions --> Create inline policy
     - Choose JSON and in the policy editor write:
+    
     
 ```
 {
@@ -192,11 +194,14 @@ Just add a new policy. You can name the policy with the target account ID or its
         {
             "Effect": "Allow",
             "Action": "sts:AssumeRole",
-            "Resource": "arn:aws:I am::<<new_AWS_account_id>>:role/<<role_name>>"
+            "Resource": "arn:aws:I am::XXXXXXXXXXXX:role/<<role_name>>"
         }
     ]
 }
 ```
+    
+where XXXXXXXXXXXX is the target AWS account ID
+
 Example:
 
 ```
