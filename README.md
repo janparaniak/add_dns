@@ -137,26 +137,72 @@ No code changes are required. To add a new account:
 
 12. **Create the IAM Role in the Target Account:**
     
-    - In the target account, create an IAM role (e.g., `DNSManager`) with permissions like **AmazonRoute53FullAccess**.
-    - Set the trusted entity type to **AWS account** and specify the Lambda’s account ID.
-    - Ensure the trust policy includes the Lambda execution role ARN (e.g., `arn:aws:iam::<LambdaAccountID>:role/add-dns-AddDnsFunctionRole-VhfqUK6mRbe9`).
+    - In the target account, create an IAM role (e.g., `DNSManager`) with permission **AmazonRoute53FullAccess**.
+    - Set the trusted entity type to **AWS account** and specify the Lambda’s account ID (899084202472)
+    - Ensure the trust policy includes the Lambda execution role ARN:
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Statement1",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::899084202472:user/janp"
+            },
+            "Action": "sts:AssumeRole"
+        },
+        {
+            "Sid": "AllowLambdaExecutionRole",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::899084202472:role/add-dns-AddDnsFunctionRole-VhfqUK6mRbe9"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+
 13. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:**
     
     - Append a new JSON object for the target account to the array. For example:
-        
-        json
-        
-        Copy
         
         `[   { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },   { "account_id": "727712672144", "role_name": "DNSManager" },   { "account_id": "XXXXXXXXXXXX", "role_name": "NewTargetRole" } ]`
         
 14. **Update Environment Variables in the Lambda Function:**
     
-    - In the Lambda console, update the `DNS_ACCOUNT_ROLE_MAPPINGS` variable accordingly.
-15. **Modify the IAM Policy on the Lambda Execution Role:**
-    
-    - Update the IAM policy attached to the Lambda execution role to allow assuming the new target role.
+    - Add new account ID and role name as two environment variables (two key:value pairs)
 
+15. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
+    
+    - In CoreSupport-Admin (AWS account ID 899084202472) navigate to IAM --> Roles
+    - Find add-dns-AddDnsFunctionRole-VhfqUK6mRbe9
+    - Click Add permissions --> Create inline policy
+    - JSON: 
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": "arn:aws:I am::<<new_AWS_account_id>>:role/<<role_name>>"
+        }
+    ]
+}
+
+Example:
+
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": "arn:aws:iam::727712672144:role/DNSManager"
+        }
+    ]
+}
+
+**Make sure to include the leading zero (0) digit of the AWS Account ID, if there's any**
 ---
 
 ## References
