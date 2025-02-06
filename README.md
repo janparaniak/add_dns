@@ -207,7 +207,8 @@ Example:
 }
 ```
 
-**Make sure to include the leading zero (0) digit of the AWS Account ID, if there's any**
+**If AWS Account ID starts with a zero (0) digit, make sure to include this leading zero**
+
 ---
 
 ## References
