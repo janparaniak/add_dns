@@ -223,7 +223,7 @@ Example:
 - [CSAI Lambda Automation Boilerplate](https://github.com/trilogy-group/csai-lambda-automation-boilerplate)
 - [AWS Route53 Documentation](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html)
 - [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html)
-- [Zendesk Developer Docs]([url](https://developer.zendesk.com/documentation/))
+- [Zendesk Developer Docs](https://developer.zendesk.com/documentation/))
 
 **Maintainer**: `[CS / Jan Paraniak]`  
 **Contact**: `jan.paraniak@trilogy.com` (for questions/bug reports)
