@@ -210,7 +210,7 @@ Example:
         }
     ]
 }
-```
+```    - Name the policy with target account ID or its name
 
 **If AWS Account ID starts with a zero (0) digit, make sure to include this leading zero**
 
