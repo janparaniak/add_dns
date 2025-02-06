@@ -137,10 +137,10 @@ No code changes are required. To add a new account:
 
 12. **Create the IAM Role in the Target Account:**
     
-    - In the target account, create an IAM role (e.g., `DNSManager`) with permission **AmazonRoute53FullAccess**.
-    - Set the trusted entity type to **AWS account** and specify the Lambda’s account ID (899084202472)
-    - Ensure the trust policy includes the Lambda execution role ARN:
-{
+    - In the target account, got to IAM --> Roles and create an IAM role (e.g., `DNSManager`) with permission **AmazonRoute53FullAccess**.
+    - Set the trusted entity type to **AWS account** and specify the Lambda’s account ID (899084202472). Press "Crete Role"
+    - Edit the Role trust policy to
+```{
     "Version": "2012-10-17",
     "Statement": [
         {
@@ -160,7 +160,7 @@ No code changes are required. To add a new account:
             "Action": "sts:AssumeRole"
         }
     ]
-}
+}```
 
 13. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:**
     
@@ -178,7 +178,7 @@ No code changes are required. To add a new account:
     - Find add-dns-AddDnsFunctionRole-VhfqUK6mRbe9
     - Click Add permissions --> Create inline policy
     - JSON: 
-{
+```{
     "Version": "2012-10-17",
     "Statement": [
         {
@@ -188,10 +188,10 @@ No code changes are required. To add a new account:
         }
     ]
 }
-
+```
 Example:
 
-{
+```{
     "Version": "2012-10-17",
     "Statement": [
         {
@@ -200,7 +200,7 @@ Example:
             "Resource": "arn:aws:iam::727712672144:role/DNSManager"
         }
     ]
-}
+}```
 
 **Make sure to include the leading zero (0) digit of the AWS Account ID, if there's any**
 ---
