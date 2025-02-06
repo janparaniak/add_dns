@@ -98,30 +98,30 @@ The Lambda function now supports multiple accounts using the environment variabl
 
 ### Deployment Steps (SAM Example)
 
-4. Clone or copy the repository locally.
-5. (Optional) Run `pip install -r requirements.txt` to install dependencies.
-6. Execute `sam build` to build the project.
-7. Run `sam deploy --guided` to deploy the Lambda function.
-8. After deployment, verify the environment variables in the Lambda console.
+1. Clone or copy the repository locally.
+2. (Optional) Run `pip install -r requirements.txt` to install dependencies.
+3. Execute `sam build` to build the project.
+4. Run `sam deploy --guided` to deploy the Lambda function.
+5. After deployment, verify the environment variables in the Lambda console.
 
 ---
 
 ## Usage
 
-9. **Zendesk Trigger:**  
+1. **Zendesk Trigger:**  
     Tag a ticket with `add_dns-trigger`. This sends a JSON payload (including fields like `action`, `ticket_id`, and `description`) to the API Gateway endpoint.
     
     **Example Payload:**
 
     `{   "action": "add_dns",   "ticket_id": "123456",   "description": "DNS Name: test\nDomain: example.com\nDNS Type: A\nDNS Value: 1.2.3.4" }`
     
-10. **Lambda Execution:**
+2. **Lambda Execution:**
     
     - The Lambda function parses and validates the DNS record.
     - It then checks for the domain in each configured account and attempts to create the record via Route53.
     - If successful, it calls the Zendesk macro (`send_to_customer_macro`), which sends a public reply and sets the ticket to **pending**.
     - If any validations fail, the function writes an internal note.
-11. **Failure Handling:**
+3. **Failure Handling:**
     
     - Detailed failure messages are recorded if the DNS record cannot be added.
 
@@ -129,9 +129,9 @@ The Lambda function now supports multiple accounts using the environment variabl
 
 ## Expanding Functionality to Other Accounts
 
-No code changes are required. To add a new account:
+No code changes are required. Three steps required to add a new account:
 
-12. **Create the IAM Role in the Target Account:**
+1. **Create the IAM Role in the Target Account:**
     
     - In the target account, got to IAM --> Roles and create an IAM role (`DNSManager`)
     - Set the trusted entity type to **AWS account**, choose "Another AWS account" and specify Lambda’s account ID (899084202472). Click "Next"
@@ -162,7 +162,7 @@ No code changes are required. To add a new account:
 }
 ```
 
-13. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:** in  RAM-AWS-CoreSupport-Admin (899084202472)
+2. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:** in  RAM-AWS-CoreSupport-Admin (899084202472)
     
     - Navigate to Lambda --> Functions --> add_dns --> Configuration tab --> Environment variables
     - Click Edit and find the DNS_ACCOUNT_ROLE_MAPPINGS key
@@ -171,7 +171,7 @@ No code changes are required. To add a new account:
         `[   { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },   { "account_id": "727712672144", "role_name": "DNSManager" },   { "account_id": "XXXXXXXXXXXX", "role_name": "NewTargetRole" } ]`
         
 
-14. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
+3. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
     
     - Still in CoreSupport-Admin (AWS account ID 899084202472) navigate to IAM --> Roles
     - Find `add-dns-AddDnsFunctionRole-VhfqUK6mRbe9` Role
