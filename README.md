@@ -138,6 +138,7 @@ No code changes are needed. **Three steps** are required to add a new account:
     - Add permission `AmazonRoute53FullAccess` and click "Next"
     - Name Role to "DNSManager" and click "Create Role"
     - After creating the role, edit the trust relationship > trust policy to:
+
 ```
 {
     "Version": "2012-10-17",
