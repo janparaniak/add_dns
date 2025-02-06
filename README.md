@@ -166,7 +166,7 @@ No code changes are required. To add a new account:
 - [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html)
 - Zendesk Developer Docs
 
-**Maintainer**: `[CS / Jan Parania]`  
+**Maintainer**: `[CS / Jan Paraniak]`  
 **Contact**: `jan.paraniak@trilogy.com` (for questions/bug reports)
 
 ---
