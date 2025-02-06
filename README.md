@@ -178,7 +178,7 @@ No code changes are required. To add a new account:
 15. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
     
     - Still in CoreSupport-Admin (AWS account ID 899084202472) navigate to IAM --> Roles
-    - Find add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 Role
+    - Find `add-dns-AddDnsFunctionRole-VhfqUK6mRbe9` Role
     - Click Add permissions --> Create inline policy
     - Choose JSON and in the policy editor write: 
 ```
