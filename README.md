@@ -131,13 +131,14 @@ The Lambda function now supports multiple accounts using the environment variabl
 
 No code changes are needed. **Three steps** are required to add a new account:
 
-1. **Create the IAM Role in the Target Account:**
+### 1. **Create the IAM Role in the Target Account:**
     
     - In the target account, got to IAM --> Roles and create an IAM role (`DNSManager`)
     - Set the trusted entity type to **AWS account**, choose "Another AWS account" and specify Lambda’s account ID (899084202472). Click "Next"
     - Add permission `AmazonRoute53FullAccess` and click "Next"
     - Name Role to "DNSManager" and click "Create Role"
     - After creating the role, edit the trust relationship > trust policy to:
+      
 
 ```
 {
@@ -163,17 +164,18 @@ No code changes are needed. **Three steps** are required to add a new account:
 }
 ```
 
-2. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:** in  RAM-AWS-CoreSupport-Admin (899084202472)
+### 2. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:** in  RAM-AWS-CoreSupport-Admin (899084202472)
 
     
     - Navigate to Lambda --> Functions --> add_dns --> Configuration tab --> Environment variables
     - Click Edit and find the DNS_ACCOUNT_ROLE_MAPPINGS key
     - Append a new JSON object for the target account to the array. For example:
+      
         
         `[   { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },   { "account_id": "727712672144", "role_name": "DNSManager" },   { "account_id": "XXXXXXXXXXXX", "role_name": "NewTargetRole" } ]`
         
 
-3. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
+### 3. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
 
 Just add a new policy. You can name the policy with the target account ID or its name
 
@@ -181,6 +183,7 @@ Just add a new policy. You can name the policy with the target account ID or its
     - Find `add-dns-AddDnsFunctionRole-VhfqUK6mRbe9` Role
     - Click Add permissions --> Create inline policy
     - Choose JSON and in the policy editor write: 
+    
 ```
 {
     "Version": "2012-10-17",
