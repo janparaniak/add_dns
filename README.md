@@ -168,14 +168,8 @@ No code changes are required. To add a new account:
         
         `[   { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },   { "account_id": "727712672144", "role_name": "DNSManager" },   { "account_id": "XXXXXXXXXXXX", "role_name": "NewTargetRole" } ]`
         
-14. **Update Environment Variables in the Lambda Function:**
-    
-    - Add new account ID and role name as two environment variables (two key:value pairs)
-    - For example, if the target account id is 600506650469, you can add two pairs as follows:
-            ID_600506650469 600506650469
-            Name_600506650469 DNSManager
 
-15. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
+14. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
     
     - Still in CoreSupport-Admin (AWS account ID 899084202472) navigate to IAM --> Roles
     - Find `add-dns-AddDnsFunctionRole-VhfqUK6mRbe9` Role
