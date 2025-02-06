@@ -129,9 +129,9 @@ The Lambda function now supports multiple accounts using the environment variabl
 
 ## Expanding Functionality to Other Accounts
 
-No code changes are required. Three steps required to add a new account:
+No code changes are required. **Three steps** are required to add a new account:
 
-1. **Create the IAM Role in the Target Account:**
+### 1. **Create the IAM Role in the Target Account:**
     
     - In the target account, got to IAM --> Roles and create an IAM role (`DNSManager`)
     - Set the trusted entity type to **AWS account**, choose "Another AWS account" and specify Lambda’s account ID (899084202472). Click "Next"
@@ -162,7 +162,7 @@ No code changes are required. Three steps required to add a new account:
 }
 ```
 
-2. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:** in  RAM-AWS-CoreSupport-Admin (899084202472)
+### 2. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:** in  RAM-AWS-CoreSupport-Admin (899084202472)
     
     - Navigate to Lambda --> Functions --> add_dns --> Configuration tab --> Environment variables
     - Click Edit and find the DNS_ACCOUNT_ROLE_MAPPINGS key
@@ -171,7 +171,7 @@ No code changes are required. Three steps required to add a new account:
         `[   { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },   { "account_id": "727712672144", "role_name": "DNSManager" },   { "account_id": "XXXXXXXXXXXX", "role_name": "NewTargetRole" } ]`
         
 
-3. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
+### 3. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
     
     - Still in CoreSupport-Admin (AWS account ID 899084202472) navigate to IAM --> Roles
     - Find `add-dns-AddDnsFunctionRole-VhfqUK6mRbe9` Role
