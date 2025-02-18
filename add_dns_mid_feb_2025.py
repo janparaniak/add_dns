@@ -66,9 +66,6 @@ def send_notification_email(subject, message):
 # HELPER FUNCTION FOR RETRYING API CALLS (to avoid throttling errors)
 # ------------------------------------------------------------------------------
 def call_api(func, *args, **kwargs):
-    """
-    Wrap AWS API calls in exponential backoff to avoid throttling errors.
-    """
     max_retries = 5
     delay = 1
     for attempt in range(max_retries):
@@ -82,7 +79,6 @@ def call_api(func, *args, **kwargs):
                 delay *= 2
             else:
                 raise
-    # Final attempt if it still fails:
     return func(*args, **kwargs)
 
 
@@ -110,10 +106,6 @@ def reorder_mappings(mappings):
 
 
 def get_route53_client(account_id=None, role_name=None):
-    """
-    If account_id/role_name are provided, assume that cross-account role.
-    Otherwise, fallback to CENTRAL_ADMIN_* env variables or local credentials.
-    """
     if not account_id or not role_name:
         account_id = os.getenv('CENTRAL_ADMIN_ACCOUNT_ID')
         role_name = os.getenv('CENTRAL_ADMIN_ROLE_NAME')
@@ -156,7 +148,6 @@ def extract_dns_details(description):
         if match:
             dns_details[key] = match.group(1).strip()
 
-    # If user typed '@' for dns_name, interpret it as apex
     if dns_details.get('dns_name') == '@':
         dns_details['dns_name'] = ''
     return dns_details
@@ -199,22 +190,20 @@ def validate_dns_details(dns_details):
         if not is_valid_hostname(dns_name):
             errors.append(f"Invalid DNS name format: {dns_name}")
 
-    # Check total length
+    # Check length
     full_record_name = f"{dns_name}.{domain}".rstrip('.') if dns_name else domain
     if len(full_record_name) > 255:
         errors.append(f"The full DNS name exceeds 255 characters: {full_record_name}")
 
-    # Wildcard checks
+    # Wildcard
     if '*' in dns_name:
         if not dns_name.startswith('*.'):
             errors.append("Wildcard records must start with '*.'")
 
     # Apex CNAME
-    cname_valid, cname_error = prevent_cname_at_apex(dns_details)
+    cname_valid, cname_err = prevent_cname_at_apex(dns_details)
     if not cname_valid:
-        errors.append(cname_error)
-
-    # Additional validations for A, AAAA, MX, etc., if needed
+        errors.append(cname_err)
 
     if errors:
         return False, errors
@@ -227,7 +216,7 @@ def split_txt_value(value):
 
 
 # ------------------------------------------------------------------------------
-# CROSS-ACCOUNT ROUTE53 HELPER FUNCTIONS
+# ROUTE53 CROSS-ACCOUNT HELPER
 # ------------------------------------------------------------------------------
 def call_list_hosted_zones(client):
     paginator = call_api(client.get_paginator, 'list_hosted_zones')
@@ -241,6 +230,7 @@ def check_if_domain_in_hosted_zones(dns_details, client=None):
     domain = dns_details.get('domain', '').rstrip('.')
     if not domain:
         raise ValueError("Domain is missing in dns_details.")
+
     if client is None:
         client = get_route53_client()
 
@@ -261,14 +251,14 @@ def record_exists(zone_id, record_name, record_type, client=None):
         client = get_route53_client()
     record_name = record_name.rstrip('.') + '.'
     try:
-        response = call_api(
+        resp = call_api(
             client.list_resource_record_sets,
             HostedZoneId=zone_id,
             StartRecordName=record_name,
             StartRecordType=record_type,
             MaxItems="1"
         )
-        recs = response['ResourceRecordSets']
+        recs = resp['ResourceRecordSets']
         if recs:
             first = recs[0]
             if first['Name'] == record_name and first['Type'] == record_type:
@@ -358,7 +348,7 @@ def add_dns_record(dns_details, hosted_zone_id, client=None, account_id="unknown
 
     conflict, existing_type = conflicting_record_exists(zone_id, record_name, dns_type, client)
     if conflict:
-        print(f"[Account {account_id}] Cannot add {dns_type} because {existing_type} already exists at {record_name}.")
+        print(f"[Account {account_id}] Cannot add {dns_type}; {existing_type} already exists at {record_name}.")
         return 'conflict'
 
     already_exists, _ = record_exists(zone_id, record_name, dns_type, client)
@@ -368,7 +358,7 @@ def add_dns_record(dns_details, hosted_zone_id, client=None, account_id="unknown
 
     # Build resource records
     if dns_type == 'MX':
-        parts = dns_value.strip().split(None, 1)
+        parts = dns_value.split(None, 1)
         if len(parts) != 2:
             raise ValueError("MX record requires priority and mail server.")
         priority, mail_server = parts
@@ -408,7 +398,7 @@ def add_dns_record(dns_details, hosted_zone_id, client=None, account_id="unknown
         time.sleep(2)
         recheck, _ = record_exists(zone_id=hosted_zone_id, record_name=record_name, record_type=dns_type, client=client)
         if recheck:
-            print(f"[Account {account_id}] Verified record '{record_name}'. => 'added'")
+            print(f"[Account {account_id}] Verified record '{record_name}' => 'added'")
             return 'added'
         else:
             print(f"[Account {account_id}] Re-check failed => 'unknown'")
@@ -416,7 +406,7 @@ def add_dns_record(dns_details, hosted_zone_id, client=None, account_id="unknown
     except client.exceptions.InvalidChangeBatch as e:
         err_msg = e.response['Error']['Message']
         if "but it already exists" in err_msg:
-            print(f"[Account {account_id}] The {dns_type} record '{record_name}' already exists after all.")
+            print(f"[Account {account_id}] The {dns_type} record '{record_name}' exists after all => 'exists'")
             return 'exists'
         else:
             print(f"[Account {account_id}] Error adding DNS record: {e}")
@@ -428,8 +418,9 @@ def add_dns_record(dns_details, hosted_zone_id, client=None, account_id="unknown
 # ------------------------------------------------------------------------------
 def process_dns_request(description):
     """
-    1) If any account can add the record or find it 'exists', short-circuit success.
-    2) If domain not found or there's an error in all accounts, produce final failure.
+    1) If any account can successfully add or find existing => short-circuit success
+       returning (True, None, { "account_id":..., "zone_id":..., "dns_type":... }).
+    2) If domain not found or error in every account => return failure with note.
     """
     dns_details = extract_dns_details(description)
     req_fields = ['dns_name', 'domain', 'dns_type', 'dns_value']
@@ -444,7 +435,6 @@ def process_dns_request(description):
         else:
             return False, f"Validation error: {validation_msg}", None
 
-    # Build account mappings
     if DNS_ACCOUNT_ROLE_MAPPINGS:
         try:
             acct_map = json.loads(DNS_ACCOUNT_ROLE_MAPPINGS)
@@ -469,6 +459,8 @@ def process_dns_request(description):
         print(f"Checking account {acct_id} with role {role_name}")
 
         client = get_route53_client(acct_id, role_name)
+
+        # Check if domain in this account
         try:
             domain_found, hosted_zone_ids = check_if_domain_in_hosted_zones(dns_details, client)
             if not domain_found:
@@ -478,6 +470,7 @@ def process_dns_request(description):
             fail_notes.append(f"Account {acct_id} domain check error: {e}")
             continue
 
+        # If found => attempt
         zone_fail = []
         for zone_id in hosted_zone_ids:
             try:
@@ -486,26 +479,36 @@ def process_dns_request(description):
                 zone_fail.append(f"zone {zone_id} limit error: {str(e)}")
                 continue
 
-            # If it's a TXT that starts with v=spf1 => ensure no dup SPF
-            if dns_details['dns_type'].upper() == 'TXT' and dns_details['dns_value'].lower().startswith('v=spf1'):
+            # SPF check if needed
+            if (dns_details['dns_type'].upper() == 'TXT'
+               and dns_details['dns_value'].lower().startswith('v=spf1')):
                 try:
                     spf_exists, _ = spf_record_exists_in_zone(zone_id, client)
                     if spf_exists:
                         zone_fail.append(f"zone {zone_id}: SPF record already exists.")
                         continue
                 except Exception as e:
-                    zone_fail.append(f"zone {zone_id}: SPF check error => {e}")
+                    zone_fail.append(f"zone {zone_id} SPF check error => {e}")
                     continue
 
             try:
                 res = add_dns_record(dns_details, zone_id, client, account_id=acct_id)
             except Exception as e:
-                zone_fail.append(f"zone {zone_id}: add error => {e}")
+                zone_fail.append(f"zone {zone_id} add error => {e}")
                 continue
 
             if res in ['added', 'exists']:
+                # success short-circuit
                 print(f"[Account {acct_id}] => short-circuit success: {res}")
-                return True, None, None
+                success_info = {
+                    "account_id": acct_id,
+                    "zone_id": zone_id,
+                    "dns_name": dns_details['dns_name'],
+                    "dns_type": dns_details['dns_type'],
+                    "domain": dns_details['domain'],
+                    "result": res
+                }
+                return True, None, success_info
             else:
                 zone_fail.append(f"zone {zone_id}: {res}")
 
@@ -515,8 +518,8 @@ def process_dns_request(description):
             fail_notes.append(f"Account {acct_id}: domain found but no zones updated (unknown).")
 
     if fail_notes:
-        allfail = "\n".join(fail_notes)
-        note = f"No DNS record was added. Summary:\n{allfail}"
+        combined = "\n".join(fail_notes)
+        note = f"No DNS record was added. Summary:\n{combined}"
         return False, note, None
     else:
         return False, "No accounts matched or domain not found anywhere. Not added.", None
@@ -525,10 +528,9 @@ def process_dns_request(description):
 # ------------------------------------------------------------------------------
 # PREPARE RESPONSE & LAMBDA HANDLER
 # ------------------------------------------------------------------------------
-def prepare_public_response(dns_details, ticket_id, zendesk_agent):
+def prepare_public_response(dns_details, ticket_id, zendesk_agent, success_info=None):
     """
-    Omitting the AWS account reference since we aren't returning it from process_dns_request.
-    You can re-add if you decide to store that ID in the success path.
+    If success_info is provided, we can display which account was used.
     """
     ticket_data = zendesk_agent.get(f"tickets/{ticket_id}")
     if ticket_data and 'ticket' in ticket_data:
@@ -547,6 +549,14 @@ def prepare_public_response(dns_details, ticket_id, zendesk_agent):
     dns_value = dns_details.get('dns_value', '')
     domain = dns_details.get('domain', '')
 
+    # Build optional snippet showing account info
+    account_snippet = ""
+    if success_info and success_info.get("account_id"):
+        acct_id = success_info["account_id"]
+        zone_id = success_info["zone_id"]
+        account_snippet = f"*AWS Account:* {acct_id}\n*Hosted Zone:* {zone_id}\n"
+
+    # Format the reply
     public_response = textwrap.dedent(f"""\
         Dear {requester_first_name},
 
@@ -559,9 +569,10 @@ def prepare_public_response(dns_details, ticket_id, zendesk_agent):
         Value: {dns_value}
         Domain: {domain}
 
-        *Please note that DNS changes can take up to 24 hours (in rare cases, up to 48 hours) to propagate.*
+        *Please note that DNS changes can take up to 24 hours (in rare cases, up to 48 hours) to propagate worldwide.*
         *Your new record might not be immediately visible in all regions.*
 
+        {account_snippet}
         Should you require further assistance or have any questions, please do not hesitate to reach out to us.
         """).strip()
 
@@ -573,7 +584,7 @@ def lambda_handler(event, _):
     PARAMETERS = PARAMETERS or load_parameters(PARAMETER_NAME)
     os.environ.update(PARAMETERS)
 
-    # Parse event payload
+    # Parse event
     body = event.get("body", None)
     if body is None:
         body = event
@@ -586,41 +597,44 @@ def lambda_handler(event, _):
     print(f"Running {action}")
     ticket_id = body.get("ticket_id")
     print(f"Ticket ID : {ticket_id}")
+
     payload = None
 
     if action and ticket_id:
         if action == "add_dns":
             zendesk_agent = zendesk_connection.ZendeskConnect()
+            # Clear the "start" tag
             zendesk_agent.delete_tags(ticket_id, [START_TAG])
+            # Mark as in-progress
             zendesk_agent.add_tags(ticket_id, [WIP_TAG])
 
-            # 1) Perform the logic
             description = body.get("description", "")
             if not description:
                 success = False
                 internal_note = "No description found in the ticket."
+                success_info = None
             else:
-                success, internal_note, _ = process_dns_request(description)
+                success, internal_note, success_info = process_dns_request(description)
 
-            # 2) Remove in-progress tags & mark completed
+            # Cleanup
             zendesk_agent.delete_tags(ticket_id, [START_TAG, WIP_TAG])
             zendesk_agent.add_tags(ticket_id, [COMPLETED_TAG])
 
-            # 3) If success => send public reply (pending)
             if success:
+                # Mark as pending with a public reply
                 zendesk_agent.add_tags(ticket_id, [ATLAS_CUSTOM_CLOSURE_TAG])
                 dns_details = extract_dns_details(description)
-                public_message = prepare_public_response(dns_details, ticket_id, zendesk_agent)
-                zendesk_agent.send_to_customer_macro(ticket_id, public_message)
+                public_msg = prepare_public_response(dns_details, ticket_id, zendesk_agent, success_info=success_info)
+                zendesk_agent.send_to_customer_macro(ticket_id, public_msg)
             else:
-                # Check whether we found zero domains across all accounts => "not found"
+                # Domain not found => "on hold", but also add an internal note
                 if internal_note and ("not found" in internal_note.lower()):
-                    # Check if ticket is already on-hold
+                    # 1) Write an internal note so we see the summary
+                    zendesk_agent.write_internal_note(ticket_id, internal_note)
+                    # 2) Check if ticket is already on hold
                     current_data = zendesk_agent.get(f"tickets/{ticket_id}")
-                    if current_data:
-                        current_ticket = current_data.get("ticket", {})
-                        status = current_ticket.get("status", "").lower()
-                        if status == "hold":
+                    if current_data and "ticket" in current_data:
+                        if current_data["ticket"].get("status", "").lower() == "hold":
                             print("Ticket is already on hold; skip re-holding.")
                         else:
                             zendesk_agent.send_to_external_team_macro(
@@ -631,7 +645,7 @@ def lambda_handler(event, _):
                                 escalation_target="tempo_other"
                             )
                     else:
-                        # If we cannot retrieve the ticket or something => fallback to normal
+                        # fallback
                         zendesk_agent.send_to_external_team_macro(
                             ticket_id,
                             reason="Automation adding necessary permissions",
@@ -640,23 +654,24 @@ def lambda_handler(event, _):
                             escalation_target="tempo_other"
                         )
                 else:
+                    # Just add an internal note
                     if internal_note:
                         zendesk_agent.write_internal_note(ticket_id, internal_note)
                     else:
-                        fail_note = f"{TAG_NAME} automation failed, but no details."
-                        zendesk_agent.write_internal_note(ticket_id, fail_note)
+                        zendesk_agent.write_internal_note(ticket_id, f"{TAG_NAME} automation failed; no details found.")
 
-            # 4) Send summary email
-            summary_subject = f"DNS Automation Summary for Ticket {ticket_id}"
+            # Email summary
+            summary_subj = f"DNS Automation Summary for Ticket {ticket_id}"
             if success:
                 summary_body = (f"Ticket {ticket_id} processed with action '{action}'.\n\n"
                                 f"Result: SUCCESS.\n"
-                                f"Details:\nRecord was created or found to exist.")
+                                f"Details:\nRecord was created or found to exist.\n\n"
+                                f"Success Info: {success_info or 'N/A'}")
             else:
                 summary_body = (f"Ticket {ticket_id} processed with action '{action}'.\n\n"
                                 f"Result: FAILURE.\n"
                                 f"Details:\n{internal_note or 'Unknown reason.'}")
-            send_notification_email(summary_subject, summary_body)
+            send_notification_email(summary_subj, summary_body)
 
         elif action == "add_dns_need_sc":
             sc_approval_scenario.send_for_approval(body, ticket_id)
@@ -675,14 +690,13 @@ def lambda_handler(event, _):
                 fail_note = f"{TAG_NAME} automation aborted (not approved)."
                 zendesk_agent.write_internal_note(ticket_id, fail_note)
 
-        # 5) Normal 200 response
-        message = f"{action} is completed."
+        # Always respond 200 if we had a valid action
         return {
             'statusCode': 200,
-            'body': json.dumps({"message": message, "payload": payload})
+            'body': json.dumps({"message": f"{action} is completed.", "payload": payload})
         }
     else:
-        # Missing ticket_id or action => 404
+        # Missing ticket_id or action
         return {
             'statusCode': 404,
             'body': json.dumps({
@@ -699,6 +713,7 @@ def load_parameters(parameter_name):
 
 
 if __name__ == '__main__':
+    # Quick local test
     test_event = {
         'action': 'add_dns',
         'ticket_id': '4565961',
