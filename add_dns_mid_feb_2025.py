@@ -501,10 +501,12 @@ def prepare_public_response(dns_details, ticket_id, zendesk_agent, success_info=
 
         We are pleased to confirm that the new DNS record has been added automatically:
 
+        ```
         DNS Name: {dn}
         Record Type: {dt}
         Value: {dv}
         Domain: {dom}
+        ```
 
         *Please note that DNS changes can take up to 24 hours (in rare cases, up to 48 hours) to propagate.*
         *Your new record might not be immediately visible in all regions.*{account_snip}
