@@ -32,6 +32,8 @@ def post_internal_note_once(ticket_id, content, zendesk_agent):
     """
     Post an internal note, but only if the last internal note isn't the same text.
     """
+    time.sleep(1)
+
     comments_data = zendesk_agent.get(f"tickets/{ticket_id}/comments?sort_order=desc")
     if comments_data and "comments" in comments_data:
         comments = comments_data["comments"]
@@ -338,6 +340,13 @@ def add_dns_record(dns_details, zone_id, client=None, account_id="unknown"):
         rr = [{"Value": f'"{c}"'} for c in chunks]
     elif dtype in ["CAA", "SRV"]:
         rr = [{"Value": dval}]
+    elif dtype == "NS":
+        # If you want to fail whenever "for:" shows up, do something like:
+        # Split the user-provided string by commas/whitespace
+        ns_tokens = re.split(r"[,\s]+", dval)
+        # Build one ResourceRecord per token, ignoring blanks
+        rr = [{"Value": token.strip()} for token in ns_tokens if token.strip()]
+
     else:
         rr = [{"Value": dval}]
 
@@ -384,6 +393,15 @@ def process_dns_request(description):
     missing = [f for f in required if f not in dns_details or not dns_details[f]]
     if missing:
         return False, f"Missing DNS details: {', '.join(missing)}", None
+
+    # A small check if the CNAME record matches values
+    if dns_details["dns_type"].upper() == "CNAME":
+        val = dns_details["dns_value"].lower()
+        if "ns-" in val and ("," in val or " " in val):
+            return False, (
+                "User selected CNAME, but the DNS Value looks like nameservers. "
+                "Please confirm if this should be an NS record."
+            ), None
 
     valid, msg = validate_dns_details(dns_details)
     if not valid:
@@ -560,7 +578,7 @@ def lambda_handler(event, _):
                 # Just add an internal note or do nothing
                 skip_note = "DNS record addition: This ticket already has dns-record-success tag. Skipping."
                 print(skip_note)
-                post_internal_note_once(ticket_id, skip_note, zendesk_agent)
+                # post_internal_note_once(ticket_id, skip_note, zendesk_agent)
 
                 # Cleanup tags
                 zendesk_agent.delete_tags(ticket_id, [START_TAG, WIP_TAG])
