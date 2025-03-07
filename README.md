@@ -1,8 +1,8 @@
-[Add/Edit DNS Record Documentation](https://trilogy-confluence.atlassian.net/wiki/spaces/SAASOPS/pages/901152938/Add+Edit+DNS+Record)
+[Add DNS Record Documentation](https://trilogy-confluence.atlassian.net/wiki/spaces/SAASOPS/pages/901152938/Add+Edit+DNS+Record)
 
 ## Add DNS Automation
 
-This repository hosts an AWS Lambda function named **add_dns**, triggered by Zendesk tickets to automatically add DNS records in Route53. It is based on the [CSAI Lambda Automation Boilerplate](https://github.com/trilogy-group/csai-lambda-automation-boilerplate) but has been tailored for our **Central Admin** DNS workflow with extended multi-account support and API throttling protection.
+This repository hosts an AWS Lambda function named **`add_dns`**, which is triggered by Zendesk tickets to automatically add DNS records in Amazon Route 53. It originated from the [CSAI Lambda Automation Boilerplate](https://github.com/trilogy-group/csai-lambda-automation-boilerplate) and has been enhanced for multi-account support, robust validation, and API throttling protection, specifically tailored to our **Central Admin** DNS workflow.
 
 ## Table of Contents
 
@@ -20,71 +20,73 @@ This repository hosts an AWS Lambda function named **add_dns**, triggered by Zen
 ## Overview
 
 1. **Zendesk Trigger & Webhook**  
-    A Zendesk trigger looks for a specific tag (`add_dns-trigger`) and posts JSON to an API Gateway endpoint linked to this Lambda function.
-    
+   A Zendesk trigger looks for a specific tag (`add_dns-trigger`) and posts JSON to an API Gateway endpoint linked to this Lambda function.
+
 2. **Lambda (`app.py`)**  
-    The Lambda code:
-    
-    - Parses the DNS record details from the ticket’s `description`.
-    - Validates the record (e.g., domain format, DNS type, IP address, etc.).
-    - Assumes cross-account IAM roles (using the environment variable `DNS_ACCOUNT_ROLE_MAPPINGS`) to create the record via Route53. It first tries the central admin account, then additional accounts (e.g., Contently Prod), if needed.
-    - Wraps Route53 API calls with exponential backoff to mitigate throttling errors.
-    - Sends a public reply to the ticket (via Zendesk’s macro), which—according to your Zendesk configuration—sets the ticket to **pending**.
-3. **Route53**  
-    Hosted zones may reside in multiple accounts. The function assumes the appropriate IAM role (e.g., `CentralAdminDNSManager` or `DNSManager`) based on your environment variable settings to update DNS records.
-    
+   The Lambda:
+   - Extracts DNS record details from a ticket’s `description`.
+   - Validates the data (domain format, DNS type, etc.).
+   - Assumes cross-account IAM roles to create records in Route 53. The roles and account IDs are managed via the `DNS_ACCOUNT_ROLE_MAPPINGS` environment variable.
+   - Uses exponential backoff (`call_api`) to mitigate throttling errors from Route 53.
+   - Sends a public reply on Zendesk (via a macro), which typically sets the ticket to **pending**.
+
+3. **Route 53**  
+   Hosted zones may be scattered across multiple AWS accounts. The function attempts updates in each relevant account (e.g., Central Admin, Contently Prod), stopping when a match is found.
 
 ---
 
 ## Key Files
 
-- **`app.py`**  
-    Main entry point. Contains:
-    
-    - `lambda_handler`: Orchestrates the workflow from Zendesk payload to DNS creation and ticket response.
-    - `process_dns_request`: Implements the core logic for domain verification, validation, and record creation across multiple AWS accounts.
-    - `prepare_public_response`: Formats the public reply sent back to Zendesk.
-    - `call_api`: A helper function that wraps Route53 API calls with exponential backoff to handle throttling.
-- **`zendesk_connection.py`**  
-    A wrapper for Zendesk interactions:
-    
-    - `send_to_customer_macro`: Posts a public comment and (via Zendesk macros) sets the ticket status to **pending**.
-    - `write_internal_note`: Adds an internal note.
-    - `add_tags` / `delete_tags`: Manages ticket tags for tracking.
-- **`sc_approval_scenario.py`**  
-    (Optional) Provides an example for handling side-conversation approvals.
-    
-- **`openai_ops.py`**  
-    (Optional) Shows how to integrate with OpenAI for advanced logic.
-    
+1. **`app.py`**  
+   Main entry point. Contains:
+   - **`lambda_handler`**: Orchestrates the workflow from the incoming Zendesk payload to DNS creation and final ticket updates.  
+   - **`process_dns_request`**: Handles domain checks, validation, and tries each account for Route 53 updates.  
+   - **`prepare_public_response`**: Builds the public reply posted back to Zendesk.  
+   - **`call_api`**: Wraps AWS Route 53 API calls with retry logic to handle throttling.  
+
+2. **`zendesk_connection.py`**  
+   Contains helper methods for interacting with Zendesk:
+   - `send_to_customer_macro` (public replies + macros)  
+   - `write_internal_note`  
+   - `add_tags` / `delete_tags`  
+
+3. **`sc_approval_scenario.py`**  
+   (Optional) Demonstrates how side-conversation approvals can be integrated if needed.
+
+4. **`openai_ops.py`**  
+   (Optional) Illustrates how you could incorporate OpenAI-based logic. Not strictly required for DNS.
 
 ---
 
 ## Validation Flow
 
-The function **`validate_dns_details(dns_details)`** performs several checks:
+Within **`process_dns_request()`**, your code first calls **`validate_dns_details()`**:
 
-- **Domain & DNS Name Format:** Ensures both are valid (supports IDNs).
-- **Wildcard and Apex Restrictions:** Validates wildcard records and prevents adding a CNAME at the apex.
-- **Type-Specific Validation:** Checks for proper formats for record types (A, AAAA, MX, TXT, etc.).
-- **Hosted Zone Existence:** The function **`check_if_domain_in_hosted_zones`** verifies that the domain exists in the target account’s Route53 hosted zones.
+- **Domain & DNS Name Format**: Ensures validity (including IDN support).  
+- **Apex Restrictions**: Prevents adding a CNAME at the apex if `dns_name` is blank.  
+- **Type-Specific Checks**: Ensures data is consistent with the record type (A, TXT, MX, etc.).  
+- **Hosted Zone Lookups**: Uses **`check_if_domain_in_hosted_zones()`** to confirm that the domain is managed in a given account’s Route 53.
 
-If any validation fails, an internal note is added to the ticket and no DNS record is created.
+If any check fails, the Lambda posts an internal note in the ticket detailing the error, and no DNS record is created.
 
 ---
 
 ## Cross-Account Permissions
 
-The Lambda function now supports multiple accounts using the environment variable **`DNS_ACCOUNT_ROLE_MAPPINGS`**. For example:
+The Lambda can update DNS across multiple AWS accounts based on **`DNS_ACCOUNT_ROLE_MAPPINGS`**. For example:
 
-`[   { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },   { "account_id": "727712672144", "role_name": "DNSManager" } ]`
+```json
+[
+  { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },
+  { "account_id": "727712672144", "role_name": "DNSManager" }
+]
+```
 
-**Key Points:**
+**Important Points**:
 
-- The function attempts the central admin account first (ID: 646253092271), then the Contently Prod account (ID: 727712672144), and so on.
-- The Lambda execution role must be allowed to assume these roles (via an IAM policy).
-- Each target role must trust the Lambda execution role in its trust policy.
-- The helper function `call_api` is used to handle API throttling by retrying with exponential backoff.
+- The Lambda execution role must have permission to **assume** these roles.  
+- Each target role must trust the Lambda’s execution role in its trust policy.  
+- The function tries the first account in the list (e.g., Central Admin), then subsequent accounts until the correct hosted zone is found.
 
 ---
 
@@ -92,145 +94,66 @@ The Lambda function now supports multiple accounts using the environment variabl
 
 ### Prerequisites
 
-- AWS SAM (or an equivalent deployment tool).
-- Correct environment variables configured (e.g., `CENTRAL_ADMIN_ACCOUNT_ID`, `CENTRAL_ADMIN_ROLE_NAME`, and `DNS_ACCOUNT_ROLE_MAPPINGS`).
-- IAM permissions for deployment in your Lambda’s account.
+- AWS SAM or another deployment tool.  
+- Valid environment variables:  
+  - `CENTRAL_ADMIN_ACCOUNT_ID`  
+  - `CENTRAL_ADMIN_ROLE_NAME`  
+  - `DNS_ACCOUNT_ROLE_MAPPINGS`  
+- IAM permissions for your deployment user or role.
 
-### Deployment Steps (SAM Example)
+### Steps (with SAM)
 
-1. Clone or copy the repository locally.
-2. (Optional) Run `pip install -r requirements.txt` to install dependencies.
-3. Execute `sam build` to build the project.
-4. Run `sam deploy --guided` to deploy the Lambda function.
-5. After deployment, verify the environment variables in the Lambda console.
+1. **Clone** or copy this repo locally.  
+2. Optionally, run `pip install -r requirements.txt` to install dependencies if you’re testing locally.  
+3. `sam build` to build the Lambda.  
+4. `sam deploy --guided` to deploy.  
+5. Configure environment variables (like `DNS_ACCOUNT_ROLE_MAPPINGS`) in the Lambda console or your SAM template.
 
 ---
 
 ## Usage
 
-1. **Zendesk Trigger:**  
-    Tag a ticket with `add_dns-trigger`. This sends a JSON payload (including fields like `action`, `ticket_id`, and `description`) to the API Gateway endpoint.
-    
-    **Example Payload:**
+1. **Ticket Creation & Tagging**  
+   A Zendesk trigger adds the tag `add_dns-trigger`. This fires a webhook to API Gateway with JSON data, e.g.:
 
-    `{   "action": "add_dns",   "ticket_id": "123456",   "description": "DNS Name: test\nDomain: example.com\nDNS Type: A\nDNS Value: 1.2.3.4" }`
-    
-2. **Lambda Execution:**
-    
-    - The Lambda function parses and validates the DNS record.
-    - It then checks for the domain in each configured account and attempts to create the record via Route53.
-    - If successful, it calls the Zendesk macro (`send_to_customer_macro`), which sends a public reply and sets the ticket to **pending**.
-    - If any validations fail, the function writes an internal note.
-3. **Failure Handling:**
-    
-    - Detailed failure messages are recorded if the DNS record cannot be added.
+   ```json
+   {
+     "action": "add_dns",
+     "ticket_id": "1234567",
+     "description": "DNS Name: foo\ndomain: example.com\nDNS Type: A\nDNS Value: 1.2.3.4"
+   }
+   ```
+
+2. **DNS Handling**  
+   The Lambda reads `description`, extracts DNS details, and attempts record creation in each account’s Route 53. If successful, it responds publicly on the ticket.
+
+3. **Failure**  
+   If no DNS record can be created or validation fails, an internal note is posted explaining the reason.
 
 ---
 
 ## Expanding Functionality to Other Accounts
 
-No code changes are needed. **Three steps** are required to add a new account:
+To include a new AWS account, **no code changes** are necessary. You only need to:
 
-1. **Create the IAM Role in the Target Account:**
-    
-    - In the target account, got to IAM --> Roles and create an IAM role (`DNSManager`)
-    - Set the trusted entity type to **AWS account**, choose "Another AWS account" and specify Lambda’s account ID (899084202472). Click "Next"
-    - Add permission `AmazonRoute53FullAccess` and click "Next"
-    - Name Role "DNSManager" and click "Create Role"
-    - After creating the role, edit the trust relationship > trust policy to:
-      
+1. **Create the IAM Role** in that account (e.g., `DNSManager`) with `AmazonRoute53FullAccess`, trusting the Lambda’s execution role.  
+2. **Update** the environment variable **`DNS_ACCOUNT_ROLE_MAPPINGS`** to add a JSON object for the new account.  
+3. **Grant** the Lambda’s role permission to `sts:AssumeRole` on the new `DNSManager` role in the target account.
 
-```
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "Statement1",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::899084202472:user/janp"
-            },
-            "Action": "sts:AssumeRole"
-        },
-        {
-            "Sid": "AllowLambdaExecutionRole",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::899084202472:role/add-dns-AddDnsFunctionRole-VhfqUK6mRbe9"
-            },
-            "Action": "sts:AssumeRole"
-        }
-    ]
-}
-```
-
-2. **Update `DNS_ACCOUNT_ROLE_MAPPINGS`:** in  RAM-AWS-CoreSupport-Admin (899084202472)
-
-    
-    - Navigate to Lambda --> Functions --> add_dns --> Configuration tab --> Environment variables
-    - Click Edit and find the DNS_ACCOUNT_ROLE_MAPPINGS key
-    - Append a new JSON object for the target account to the array. For example:
-      
-        
-        `[   { "account_id": "646253092271", "role_name": "CentralAdminDNSManager" },   { "account_id": "727712672144", "role_name": "DNSManager" },   { "account_id": "XXXXXXXXXXXX", "role_name": "DNSManager" } ]`
-    
-      where XXXXXXXXXXXX is the target AWS account ID
-        
-
-3. **Modify IAM Role add-dns-AddDnsFunctionRole-VhfqUK6mRbe9 in CoreSupport-Admin**
-
-    Just add a new policy. You can name the policy with the target account ID or its name
-
-    - Still in CoreSupport-Admin (AWS account ID 899084202472) navigate to IAM --> Roles
-    - Find `add-dns-AddDnsFunctionRole-VhfqUK6mRbe9` Role
-    - Click Add permissions --> Create inline policy
-    - Choose JSON and in the policy editor write:
-    
-    
-```
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "sts:AssumeRole",
-            "Resource": "arn:aws:I am::XXXXXXXXXXXX:role/<<role_name>>"
-        }
-    ]
-}
-```
-    
-where XXXXXXXXXXXX is the target AWS account ID
-
-Example:
-
-```
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "sts:AssumeRole",
-            "Resource": "arn:aws:iam::600506650469:role/DNSManager"
-        }
-    ]
-}
-```
-
-**If AWS Account ID starts with a zero (0) digit, make sure to include this leading zero**
+Once these steps are complete, the function can assume the new role and attempt DNS updates in that account automatically.
 
 ---
 
 ## References
 
-- [CSAI Lambda Automation Boilerplate](https://github.com/trilogy-group/csai-lambda-automation-boilerplate)
-- [AWS Route53 Documentation](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html)
-- [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html)
-- [Zendesk Developer Docs](https://developer.zendesk.com/documentation/))
+- [CSAI Lambda Automation Boilerplate](https://github.com/trilogy-group/csai-lambda-automation-boilerplate)  
+- [AWS Route 53 Documentation](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/Welcome.html)  
+- [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html)  
+- [Zendesk Developer Docs](https://developer.zendesk.com/documentation/)
 
 **Maintainer**: `[CS / Jan Paraniak]`  
 **Contact**: `jan.paraniak@trilogy.com` (for questions/bug reports)
 
 ---
 
-This README now reflects the latest functionality—supporting multi-account DNS updates with API throttling protection while preserving the original Zendesk integration behavior.
+*This README describes how the Lambda automatically handles DNS updates across multiple AWS accounts with minimal manual intervention.*
